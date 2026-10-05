@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WoW Forever Enhancement Shaman Simulator</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: #14110e; color: #e8dcc0;
+    font-family: "Segoe UI", Tahoma, sans-serif; display: flex; justify-content: center;
+    user-select: none;
+  }
+  body { align-items: flex-start; flex-wrap: wrap; }
+  #app { width: 100%; max-width: 760px; padding: 16px; }
+  #buffpanel {
+    width: 230px; margin: 16px 0 0 16px; padding: 10px 12px 12px; position: sticky; top: 16px;
+    background: #1b1611; border: 1px solid #4a3b28; border-radius: 6px;
+  }
+  #buffpanel { max-height: calc(100vh - 32px); overflow-y: auto; }
+  #buffpanel h2 { font-size: 15px; color: #c79c6e; margin: 0 0 8px; }
+  #buffpanel section + section { margin-top: 14px; padding-top: 10px; border-top: 1px solid #3a2f20; }
+  .buffbtns { display: flex; gap: 6px; margin-bottom: 8px; }
+  .buffbtns button {
+    flex: 1; font: inherit; font-size: 12px; font-weight: 600; padding: 4px; cursor: pointer;
+    background: #3a2c1e; color: #e8dcc0; border: 1px solid #6b5a3a; border-radius: 4px;
+  }
+  .buffbtns button:hover { border-color: #c79c6e; }
+  .rbuff {
+    display: flex; align-items: center; gap: 8px; padding: 5px 4px; cursor: pointer; border-radius: 4px;
+    font-size: 12px; opacity: .55;
+  }
+  .rbuff:hover { background: #2b2318; }
+  .rbuff.on { opacity: 1; }
+  .rbuff img { width: 26px; height: 26px; border: 1px solid #6b5a3a; border-radius: 4px; flex: none; }
+  .rbuff.on img { border-color: #ffd100; }
+  .rbuff small { display: block; color: #8f846e; font-size: 10px; line-height: 1.25; }
+  .rbuff input { accent-color: #ffd100; flex: none; }
+  @media (max-width: 1040px) { #buffpanel { position: static; width: calc(100% - 32px); max-width: 728px; } }
+  #startwrap {
+    display: none; position: absolute; inset: 40px 0 0; z-index: 3; align-items: center; justify-content: center;
+    background: rgba(20, 17, 14, .6);
+  }
+  #arena.idle #startwrap { display: flex; flex-direction: column; gap: 14px; }
+  #hpsetting { font-size: 13px; color: #e8dcc0; display: flex; align-items: center; gap: 8px; }
+  #hpinput {
+    width: 120px; padding: 5px 8px; font: inherit; font-size: 14px; font-weight: 700; text-align: right;
+    background: #1b1611; color: #ffd100; border: 1px solid #6b5a3a; border-radius: 4px;
+  }
+  #start {
+    font: inherit; font-size: 22px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+    padding: 16px 44px; color: #fff; background: linear-gradient(#3fa535, #1f6a1a); border: 2px solid #7fdc6f; border-radius: 8px;
+  }
+  #start:hover { filter: brightness(1.15); }
+  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  h1 { font-size: 20px; margin: 0; color: #c79c6e; }
+  #meter { font-size: 14px; color: #b9ad92; font-variant-numeric: tabular-nums; }
+  #meter b { color: #ffd100; }
+
+  #arena {
+    position: relative; height: 300px; margin-top: 12px; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 80%, #3a2c1e 0%, #1c1611 70%);
+    border: 1px solid #4a3b28; border-radius: 6px;
+  }
+  #target {
+    position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%);
+    text-align: center; color: #b9ad92; font-size: 12px;
+  }
+  #target svg { display: block; margin: 0 auto 4px; }
+  #target.hit svg { animation: shake .15s; }
+  @keyframes shake { 25% { transform: translateX(-4px) rotate(-2deg); } 75% { transform: translateX(4px) rotate(2deg); } }
+
+  #hpbar {
+    position: absolute; left: 12px; right: 12px; top: 10px; height: 20px; background: #1a2a12;
+    border: 1px solid #3d5a2a; border-radius: 4px; overflow: hidden;
+  }
+  #hpfill { height: 100%; width: 100%; background: linear-gradient(#4fb53a, #2e7d20); }
+  #hpbar.execute #hpfill { background: linear-gradient(#e0362a, #a3160e); }
+  #hpmark { position: absolute; left: 20%; top: 0; bottom: 0; width: 2px; background: #ffd100; opacity: .7; }
+  #hptext {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; text-shadow: 1px 1px 2px #000; font-variant-numeric: tabular-nums;
+  }
+  .floater {
+    position: absolute; font-weight: 800; font-size: 20px; pointer-events: none; white-space: nowrap;
+    text-shadow: 0 0 3px #000, 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+    animation: floatUp 1.4s ease-out forwards; transform: translateX(-50%);
+  }
+  .floater.white { color: #fff; }
+  .floater.yellow { color: #ffe100; }
+  .floater.crit { font-size: 34px; animation-name: floatCrit; }
+  .floater.avoid { color: #ddd; font-size: 16px; font-weight: 600; }
+  .floater.bleed { font-size: 14px; }
+  .floater.rage { color: #ff5a4a; font-size: 15px; }
+  @keyframes floatUp {
+    from { opacity: 1; margin-top: 0; } 70% { opacity: 1; } to { opacity: 0; margin-top: -130px; }
+  }
+  @keyframes floatCrit {
+    0% { opacity: 1; margin-top: 0; font-size: 50px; } 15% { font-size: 34px; }
+    70% { opacity: 1; } 100% { opacity: 0; margin-top: -130px; }
+  }
+
+  #stances { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: #b9ad92; }
+  .stance {
+    display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; cursor: pointer; font: inherit; font-size: 12px;
+    background: #1b1611; color: #8f846e; border: 2px solid #3a2f20; border-radius: 6px; opacity: .6;
+  }
+  .stance img { width: 26px; height: 26px; border-radius: 4px; display: block; }
+  .stance.active { opacity: 1; color: #ffd100; font-weight: 700; border-color: #ffd100; box-shadow: 0 0 8px rgba(255, 209, 0, .5); }
+  .ability.proc { border-color: #ffe100; animation: proc .6s infinite alternate; }
+  @keyframes proc { from { box-shadow: 0 0 4px #ffe100; } to { box-shadow: 0 0 14px #ffe100, inset 0 0 10px rgba(255,225,0,.5); } }
+  #buffs { min-height: 30px; margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .buff {
+    font-size: 12px; padding: 4px 8px; border-radius: 4px; background: #2b2318;
+    border: 1px solid #6b5a3a; color: #ffd100; font-variant-numeric: tabular-nums;
+  }
+
+  .swing { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11px; color: #b9ad92; }
+  .swing span { width: 62px; }
+  .swingbar { flex: 1; height: 6px; background: #241d15; border-radius: 3px; overflow: hidden; }
+  .swingbar div { height: 100%; width: 0; background: #c9c2b0; }
+
+  #ragebar {
+    position: relative; height: 28px; margin-top: 10px; background: #2a0d0a;
+    border: 1px solid #5c1f18; border-radius: 4px; overflow: hidden;
+  }
+  #ragefill { height: 100%; width: 0; background: linear-gradient(#e0362a, #a3160e); }
+  #ragetext {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; text-shadow: 1px 1px 2px #000; font-variant-numeric: tabular-nums;
+  }
+
+  #bar { display: grid; grid-template-columns: repeat(11, 1fr); gap: 6px; margin-top: 12px; }
+  .slot { text-align: center; font-size: 10px; color: #b9ad92; line-height: 1.2; }
+  .ability {
+    position: relative; display: block; width: 100%; aspect-ratio: 1; margin-bottom: 3px;
+    border: 2px solid #6b5a3a; border-radius: 6px; overflow: hidden;
+    background: #2a1712 center / cover no-repeat; color: #f3e6c8; cursor: pointer; padding: 0; font: inherit;
+  }
+  .ability:hover { border-color: #c79c6e; }
+  .ability:active { transform: scale(.95); }
+  .ability .key, .ability .cost {
+    position: absolute; font-size: 11px; font-weight: 700;
+    text-shadow: 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  }
+  .ability .key { top: 2px; left: 4px; color: #fff; }
+  .ability .cost { bottom: 2px; right: 4px; color: #ff8a7b; }
+
+  #tab-combat { position: relative; }
+  #summary {
+    display: none; position: absolute; inset: 12px 0 0; z-index: 5; padding: 4px 18px 18px; overflow: auto;
+    background: rgba(20, 17, 14, .97); border: 1px solid #c79c6e; border-radius: 6px;
+  }
+  #summary.show { display: block; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .wcl-meta { font-size: 12px; color: #b9ad92; margin: 4px 0 2px; }
+  .wcl-meta b { color: #ffd100; }
+  table.wcl { font-size: 12px; background: #0b0b0b; border: 1px solid #333; margin-top: 8px; }
+  table.wcl th { background: #1a1a1a; color: #e1f2f5; font-size: 11px; padding: 5px 6px; border-bottom: 1px solid #333; white-space: nowrap; }
+  table.wcl td { padding: 3px 6px; border-bottom: 1px solid #1c1c1c; color: #ddd; white-space: nowrap; }
+  table.wcl tr:nth-child(even) td { background: #121212; }
+  table.wcl tr:hover td { background: #1e2a30; }
+  .wcl-name { color: #ffe680 !important; font-weight: 600; }
+  .wcl-name img { width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; border: 1px solid #444; }
+  .wcl-amount { width: 34%; }
+  .wcl-amount > span { display: inline-block; vertical-align: middle; }
+  .wcl-pct { width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .wcl-bar { width: calc(100% - 110px); height: 12px; margin: 0 6px; }
+  .wcl-bar i { display: block; height: 100%; background: #c79c6e; border-radius: 1px; }
+  .wcl-total { width: 50px; text-align: right; font-variant-numeric: tabular-nums; }
+  .wcl-totalrow td { background: #1a1a1a !important; font-weight: 700; color: #fff; border-top: 1px solid #333; }
+  .reset {
+    display: block; width: 100%; margin-top: 14px; padding: 14px; cursor: pointer;
+    font: inherit; font-size: 20px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+    color: #fff; background: linear-gradient(#c0392b, #7d1810); border: 2px solid #e0685c; border-radius: 8px;
+  }
+  .reset:hover { filter: brightness(1.15); }
+  .reset:active { transform: scale(.99); }
+  nav { display: flex; gap: 4px; margin-top: 12px; border-bottom: 1px solid #4a3b28; }
+  nav button {
+    font: inherit; font-size: 13px; font-weight: 600; padding: 6px 16px; cursor: pointer;
+    background: #1b1611; color: #b9ad92; border: 1px solid #4a3b28; border-bottom: none; border-radius: 6px 6px 0 0;
+  }
+  nav button.active { background: #3a2c1e; color: #ffd100; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+  th { text-align: left; color: #c79c6e; font-size: 12px; padding: 4px 8px; border-bottom: 1px solid #4a3b28; }
+  td { padding: 5px 8px; border-bottom: 1px solid #2b2318; vertical-align: middle; }
+  td.dim, .dim { color: #8f846e; }
+  .q-epic { color: #a335ee; font-weight: 600; } .q-rare { color: #0070dd; font-weight: 600; }
+  .custom-toggle { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .custom-toggle input { accent-color: #ffd100; width: 16px; height: 16px; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+  .fields label { font-size: 12px; color: #b9ad92; display: flex; flex-direction: column; gap: 3px; }
+  .fields input {
+    padding: 6px 8px; font: inherit; font-size: 15px; font-weight: 700; background: #1b1611; color: #ffd100;
+    border: 1px solid #6b5a3a; border-radius: 4px; width: 100%;
+  }
+  .fields.off { opacity: .45; }
+  .plain-btn {
+    font: inherit; font-size: 12px; font-weight: 600; padding: 5px 12px; margin-top: 10px; cursor: pointer;
+    background: #3a2c1e; color: #e8dcc0; border: 1px solid #6b5a3a; border-radius: 4px;
+  }
+  .plain-btn:hover { border-color: #c79c6e; }
+  .tab h2 { font-size: 15px; color: #c79c6e; margin: 18px 0 0; }
+  .statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; margin-top: 10px; }
+  .stat { background: #1b1611; border: 1px solid #3a2f20; border-radius: 4px; padding: 6px 10px; font-size: 12px; color: #b9ad92; }
+  .stat b { display: block; font-size: 17px; color: #ffd100; }
+  .talent-icon, .buff img { width: 28px; height: 28px; border: 1px solid #6b5a3a; border-radius: 4px; display: block; }
+  .buff { display: flex; align-items: center; gap: 6px; }
+  .buff img { width: 18px; height: 18px; }
+  .ench { color: #1eff00; font-size: 11px; }
+  .rank { color: #ffd100; font-weight: 700; white-space: nowrap; }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; white-space: nowrap; }
+  .trees { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+  .tree { background: #1b1611; border: 1px solid #3a2f20; border-radius: 6px; padding: 0 14px 14px; margin-top: 12px; }
+  .tree h2 { margin: 10px 0; text-align: center; }
+  .tgrid { display: grid; grid-template-columns: repeat(4, 40px); grid-template-rows: repeat(7, 40px); gap: 14px 10px; }
+  .tnode {
+    position: relative; z-index: 1; width: 40px; height: 40px; border: 2px solid #ffd100; border-radius: 5px;
+    background: #2a1712 center / cover no-repeat;
+  }
+  .tnode span {
+    position: absolute; right: -6px; bottom: -6px; font-size: 10px; font-weight: 700; padding: 0 3px;
+    background: #000; border-radius: 3px; color: #ffd100;
+  }
+  .tnode.partial { border-color: #40bf40; } .tnode.partial span { color: #40bf40; }
+  .tnode.empty { border-color: #4a4338; filter: grayscale(1) brightness(.8); } .tnode.empty span { color: #999; }
+  .tnode i {
+    position: absolute; left: -6px; top: -6px; font-size: 9px; font-style: normal; font-weight: 700; padding: 0 3px;
+    background: #1f3a1c; color: #7fdc6f; border-radius: 3px;
+  }
+  .tlink { width: 4px; justify-self: center; background: #4a4338; margin: 20px 0; }
+  .tlink.on { background: #ffd100; }
+  .tag.sim { background: #1f3a1c; color: #7fdc6f; } .tag.off { background: #2b2318; color: #8f846e; }
+  .ability .cdmask { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(0,0,0,.72); pointer-events: none; }
+  .ability .cdtext {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800; color: #fff; text-shadow: 1px 1px 2px #000; pointer-events: none;
+  }
+  #keybar { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: #b9ad92; }
+  #keybar button {
+    font: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; cursor: pointer;
+    background: #3a2c1e; color: #e8dcc0; border: 1px solid #6b5a3a; border-radius: 4px;
+  }
+  #keybar button:hover { border-color: #c79c6e; }
+  #keybar button.active { background: #ffd100; color: #14110e; border-color: #ffd100; }
+  #rebind-hint.warn { color: #ff7a6b; font-weight: 700; }
+  #rebind-reset { display: none; }
+  #keybar.editing #rebind-reset { display: inline-block; }
+  #bar.editing .ability { filter: none; border-style: dashed; border-color: #c79c6e; }
+  #bar.editing .ability.rebind-target { border-style: solid; border-color: #40bf40; box-shadow: 0 0 10px #40bf40; }
+  .ability.norage { filter: grayscale(.8) brightness(.6); }
+  .ability.queued { border-color: #ffe100; box-shadow: 0 0 10px #ffe100, inset 0 0 10px rgba(255,225,0,.4); }
+  .ability.denied { animation: denied .2s; }
+  @keyframes denied { 50% { border-color: #ff3020; } }
+
+  #log {
+    margin-top: 12px; height: 132px; overflow: hidden; font-size: 12px; line-height: 1.35;
+    background: #1b1611; border: 1px solid #3a2f20; border-radius: 4px; padding: 6px 8px;
+    display: flex; flex-direction: column; justify-content: flex-end; color: #b9ad92;
+  }
+  #log .y { color: #ffe100; } #log .w { color: #fff; } #log .r { color: #ff7a6b; }
+  footer { margin-top: 10px; font-size: 11px; color: #7d735f; line-height: 1.4; }
+
+  /* Mana bar */
+  #ragebar.mana { background: #0a1630; border-color: #1f3f7a; }
+  #ragebar.mana #ragefill { background: linear-gradient(#3b82f6, #1d4ed8); }
+  .floater.mana { color: #6fb0ff; font-size: 15px; }
+  #specbar { display: flex; gap: 6px; margin-top: 10px; }
+  #specbar button {
+    flex: 1; font: inherit; font-size: 14px; font-weight: 700; padding: 8px; cursor: pointer;
+    background: #1b1611; color: #b9ad92; border: 2px solid #4a3b28; border-radius: 6px;
+  }
+  #specbar button:hover { border-color: #f58cba; }
+  #specbar button.active { background: #3a1f2c; color: #f58cba; border-color: #f58cba; }
+  h1 { color: #f58cba; }
+
+  /* Shaman colours */
+  h1 { color: #2f8fff; }
+</style>
+</head>
+<body>
+<aside id="buffpanel"></aside>
+<div id="app">
+  <header>
+    <h1>WoW Forever &mdash; <span id="spec-title"></span> (60)</h1>
+    <div id="meter"></div>
+  </header>
+
+  <nav>
+    <button data-tab="combat" class="active">Combat</button>
+    <button data-tab="gear">Gear</button>
+    <button data-tab="talents">Talents</button>
+    <button data-tab="stats">Stats</button>
+  </nav>
+
+  <div id="tab-combat" class="tab active">
+  <div id="summary">
+    <h2>Damage Done</h2>
+    <div id="summary-body"></div>
+    <button class="reset">Reset</button>
+  </div>
+  <div id="arena">
+    <div id="hpbar"><div id="hpfill"></div><div id="hpmark"></div><div id="hptext"></div></div>
+    <div id="startwrap">
+      <button id="start">Start fight</button>
+      <label id="hpsetting">Dummy health <input id="hpinput" type="number" min="1000" max="100000000" step="5000"></label>
+    </div>
+    <div id="target">
+      <svg width="90" height="130" viewBox="0 0 90 130">
+        <rect x="41" y="60" width="8" height="70" fill="#6b4a2a"/>
+        <rect x="10" y="52" width="70" height="8" rx="3" fill="#7a5632"/>
+        <ellipse cx="45" cy="72" rx="20" ry="26" fill="#b08a55" stroke="#6b4a2a" stroke-width="2"/>
+        <circle cx="45" cy="28" r="18" fill="#c9a36a" stroke="#6b4a2a" stroke-width="2"/>
+        <circle cx="45" cy="72" r="9" fill="none" stroke="#a3160e" stroke-width="3"/>
+        <circle cx="45" cy="72" r="2.5" fill="#a3160e"/>
+      </svg>
+      Raid Boss Dummy (Level 63)
+    </div>
+  </div>
+
+  <div id="buffs"></div>
+  <div class="swing"><span id="swinglabel">Swing</span><div class="swingbar"><div id="mhbar"></div></div></div>
+
+  <div id="ragebar" class="mana"><div id="ragefill"></div><div id="ragetext"></div></div>
+  <div id="bar"></div>
+  <div id="keybar">
+    <button id="rebind">Change keybinds</button>
+    <button id="rebind-reset">Reset keybinds</button>
+    <span id="rebind-hint"></span>
+  </div>
+  <div id="log"></div>
+  <button class="reset">Reset</button>
+  <footer id="footer"></footer>
+  </div>
+
+  <div id="tab-gear" class="tab"></div>
+  <div id="tab-talents" class="tab"></div>
+  <div id="tab-stats" class="tab"></div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+const rand = (a, b) => a + Math.random() * (b - a);
+const iconUrl = name => `https://wow.zamimg.com/images/wow/icons/large/${name}.jpg`;
+const store = {
+  get(key, fallback) { try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+};
+
+// ---------------------------------------------------------------------------
+// Character data. Gear, enchants and the talent build follow the MythicSim WoW Forever
+// "Enhancement Shaman" tier-list preset (two-hander with Rockbiter Weapon).
+// ---------------------------------------------------------------------------
+const BASE = { race: 'Orc', str: 88, agi: 52, int: 87, spi: 103, ap: 100, mana: 1520, meleeCrit: 1.7, spellCrit: 2.3 };
+const CRIT_RATING_PER_PCT = 14, HIT_RATING_PER_PCT = 10;
+const CRIT_PER_AGI = 0.0508, SPELL_CRIT_PER_INT = 0.0169;
+const BATTLE_SHOUT_AP = 139;
+
+const ITEMS = {
+  mask:       { slot: 'Head', name: 'Mask of the Unforgiven', q: 'rare', icon: 'inv_misc_bandana_01', hitRating: 20, critRating: 14, enchant: '+8 Strength', ench: { str: 8 } },
+  jewel:      { slot: 'Neck', name: 'Imperial Jewel', q: 'rare', icon: 'inv_misc_gem_sapphire_01', ap: 32 },
+  truestrike: { slot: 'Shoulders', name: 'Truestrike Shoulders', q: 'rare', icon: 'inv_shoulder_10', ap: 24, hitRating: 20 },
+  baron:      { slot: 'Back', name: 'Cape of the Black Baron', q: 'rare', icon: 'inv_misc_cape_20', agi: 15, ap: 20, enchant: '+3 Agility', ench: { agi: 3 } },
+  gladiator:  { slot: 'Chest', name: 'Savage Gladiator Chain', q: 'epic', icon: 'inv_chest_chain_15', str: 16, agi: 14, critRating: 21, enchant: '+4 All Stats', ench: { str: 4, agi: 4, int: 4, spi: 4 } },
+  slashclaw:  { slot: 'Wrist', name: 'Slashclaw Bracers', q: 'rare', icon: 'inv_bracer_07', agi: 7, spi: 6, hitRating: 10, enchant: '+9 Strength', ench: { str: 9 } },
+  bloodmailG: { slot: 'Hands', name: 'Bloodmail Gauntlets', q: 'rare', icon: 'inv_gauntlets_26', str: 9, int: 10, critRating: 14, enchant: '+7 Strength', ench: { str: 7 } },
+  marksman:   { slot: 'Waist', name: "Marksman's Girdle", q: 'rare', icon: 'inv_belt_18', agi: 21, hitRating: 10 },
+  woolies:    { slot: 'Legs', name: 'Warbear Woolies', q: 'rare', icon: 'inv_pants_wolf', str: 28, agi: 18, enchant: '+8 Strength', ench: { str: 8 } },
+  bloodmailB: { slot: 'Feet', name: 'Bloodmail Boots', q: 'rare', icon: 'inv_boots_01', str: 9, agi: 9, int: 10, hitRating: 10, enchant: '+7 Agility', ench: { agi: 7 } },
+  elven:      { slot: 'Ring', name: 'Tarnished Elven Ring', q: 'rare', icon: 'inv_jewelry_ring_13', agi: 15, hitRating: 10 },
+  blackstone: { slot: 'Ring', name: 'Blackstone Ring', q: 'rare', icon: 'inv_jewelry_ring_17', ap: 20, hitRating: 10 },
+  trinket:    { slot: 'Trinket', name: null },
+  reaper:     { slot: 'Two-hand', name: 'Arcanite Reaper', q: 'rare', icon: 'inv_axe_09', ap: 62, weapon: { min: 153, max: 256, speed: 3.8, type: 'Axe' },
+                enchant: 'Crusader', note: 'Rockbiter Weapon imbue' },
+};
+const gearList = keys => keys.map(k => ITEMS[k]);
+
+// Talent trees (WoW Forever beta). [name, max, row, col, icon, description at max rank, new in Forever, prerequisite]
+const NEW = true;
+const TREES = [
+  { name: 'Elemental', talents: [
+    ['Convection', 5, 1, 2, 'spell_nature_wispsplode', 'Reduces the mana cost of your Shock, Lightning Bolt, Lava Burst and Chain Lightning spells by 10%.'],
+    ['Concussion', 5, 1, 3, 'spell_nature_earthshock', 'Increases the damage done by your Lightning Bolt, Chain Lightning and Earth Shock spells by 5%.'],
+    ['Elemental Warding', 3, 2, 1, 'spell_nature_spiritarmor', 'Reduces damage taken from Fire, Frost and Nature effects by 10%.'],
+    ['Reverberation', 5, 2, 2, 'spell_frost_frostward', 'Reduces the cooldown of your Shock spells by 1 sec.'],
+    ['Call of Flame', 3, 2, 3, 'spell_fire_immolation', 'Increases the damage done by your Fire Totems and by your Flame Shock, Fire Nova and Lava Burst spells by 15%.'],
+    ['Elemental Devastation', 3, 2, 4, 'spell_fire_elementaldevastation', 'Your offensive spell crits increase your melee crit chance by 9% for 10 sec.'],
+    ['Elemental Focus', 1, 3, 2, 'spell_shadow_manaburn', '10% chance to enter a Clearcasting state after casting any Fire, Frost or Nature damage spell.'],
+    ['Elemental Alacrity', 3, 3, 3, 'spell_lightning_lightningbolt01', 'Reduces the cast time of your Lightning Bolt, Chain Lightning and Lava Burst spells by 0.5 sec.'],
+    ['Improved Fire Nova', 2, 4, 1, 'spell_fire_sealoffire', 'Increases the damage done by your Fire Nova spell by 20% and reduces its cooldown by 4 sec.'],
+    ['Eye of the Storm', 3, 4, 2, 'spell_nature_eyeofthestorm', 'Reduces pushback while casting Lightning Bolt, Chain Lightning and Lava Burst by 70%.'],
+    ['Call of Thunder', 1, 4, 3, 'spell_nature_callstorm', 'Improves your Lightning Bolt and Chain Lightning critical strike chance.', false, 'Elemental Alacrity'],
+    ['Elemental Reach', 2, 5, 1, 'spell_nature_stormreach', 'Increases the range of your Lightning Bolt, Chain Lightning, Fire Nova, Lava Burst and Flame Shock spells.'],
+    ['Lightning Overload', 3, 5, 2, 'spell_nature_lightningoverload', '10% chance for Lightning Bolt and Chain Lightning to cast a second spell for half damage.', NEW],
+    ['Earthbound', 1, 5, 4, 'spell_nature_stranglevines', 'Your Earthbind Totem immobilizes nearby targets for 5 sec when cast.', NEW],
+    ['Elemental Fury', 5, 6, 3, 'spell_fire_volcano', 'Increases the critical strike damage bonus of your Searing and Magma Totems and your Fire, Frost and Nature spells by 100%.', false, 'Call of Thunder'],
+    ['Lava Burst', 1, 7, 2, 'spell_shaman_lavaburst', 'Hurls molten lava at the target; deals 20% more damage if your Flame Shock is on the target.', NEW, 'Lightning Overload'],
+  ]},
+  { name: 'Enhancement', talents: [
+    ["Earth's Grasp", 2, 1, 1, 'spell_nature_stoneclawtotem', 'Increases the health of your Stoneclaw Totem by 50% and the radius of your Earthbind Totem by 20%.'],
+    ['Thundering Strikes', 5, 1, 2, 'ability_thunderbolt', 'Improves your chance to get a critical strike with all spells and attacks by 5%.'],
+    ['Ancestral Knowledge', 5, 1, 3, 'spell_shadow_grimward', 'Increases your Intellect by 10%.'],
+    ['Guardian Totems', 2, 2, 1, 'spell_nature_stoneskintotem', 'Improves your Stoneskin and Windwall Totems and reduces the cooldown of your Grounding Totem.'],
+    ['Mental Dexterity', 3, 2, 2, 'spell_nature_mentalquickness', 'Increases your Attack Power by an amount equal to 100% of your Intellect.', NEW],
+    ['Improved Ghost Wolf', 2, 2, 3, 'spell_nature_spiritwolf', 'Reduces the cast time of your Ghost Wolf spell by 3 sec; usable indoors.'],
+    ['Improved Lightning Shield', 3, 2, 4, 'spell_nature_lightningshield', 'Increases the damage done by your Lightning Shield orbs by 15%.'],
+    ['Elemental Weapons', 3, 3, 1, 'spell_fire_flametounge', 'Increases the attack power bonus of your Rockbiter Weapon by 20% and improves your other weapon imbues.'],
+    ['Shamanistic Focus', 1, 3, 3, 'spell_nature_elementalabsorption', 'Reduces the mana cost of your Shock and Lightning Shield spells by 45%.', NEW],
+    ['Anticipation', 3, 3, 4, 'spell_nature_mirrorimage', 'Increases your chance to dodge by an additional 6%.'],
+    ['Toughness', 5, 4, 1, 'spell_holy_devotion', 'Increases your Stamina by 10%.'],
+    ['Flurry', 5, 4, 2, 'ability_ghoulfrenzy', 'Increases your attack speed by 25% for your next 3 swings after dealing a melee critical strike.', false, 'Mental Dexterity'],
+    ['Stormstrike', 1, 4, 3, 'ability_shaman_stormstrike', 'Instantly strike for normal weapon damage; your next Lightning Bolt, Chain Lightning or Earth Shock on the target deals 20% more damage.'],
+    ['Spirit Weapons', 1, 5, 1, 'ability_parry', 'Gives a chance to parry enemy melee attacks and changes your threat depending on Rockbiter Weapon.'],
+    ['Mental Quickness', 2, 5, 2, 'spell_nature_sleep', 'Increases your spell damage and healing by up to 30% of your Intellect.', NEW],
+    ['Improved Stormstrike', 2, 5, 3, 'spell_shaman_improvedstormstrike', 'Stormstrike grants mana regeneration while casting for 15 sec; its cooldown resets when you dodge or parry.', NEW, 'Stormstrike'],
+    ['Maelstrom Weapon', 5, 6, 3, 'spell_shaman_maelstromweapon', 'Melee hits have a chance to reduce the cast time and mana cost of your next Lightning Bolt by 20%. Stacks up to 5 times.', NEW],
+    ['Rage of the Farseer', 1, 7, 2, 'spell_nature_bloodlust', 'Increases your attack speed by 30% for 25 sec. 3 min cooldown.', NEW, 'Mental Quickness'],
+  ]},
+  { name: 'Restoration', talents: [
+    ['Improved Healing Wave', 5, 1, 2, 'spell_nature_magicimmunity', 'Reduces the casting time of your Healing Wave spell by 0.5 sec.'],
+    ['Totemic Focus', 5, 1, 3, 'spell_nature_moonglow', 'Reduces the mana cost of your totems by 25%.'],
+    ['Mindfulness', 3, 2, 1, 'spell_nature_sleep', 'Allows 50% of your mana regeneration to continue while casting.', NEW],
+    ['Natural Grace', 3, 2, 2, 'spell_nature_healingtouch', 'Reduces the threat generated by your spells by 15%.'],
+    ['Tidal Focus', 5, 2, 3, 'spell_frost_manarecharge', 'Reduces the mana cost of your healing spells by 5% and improves your chance to hit by 5%.'],
+    ['Improved Reincarnation', 2, 2, 4, 'spell_nature_reincarnation', 'Reduces the cooldown of Reincarnation by 20 min and increases your maximum health by 4%.'],
+    ['Ancestral Healing', 3, 3, 1, 'spell_nature_undyingstrength', 'Critical heals increase your target\'s armor by 25% for 15 sec.'],
+    ['Healing Focus', 3, 3, 2, 'spell_nature_healingwavelesser', '70% chance to avoid interruption caused by damage while casting any healing spell.'],
+    ['Water Shield', 1, 3, 3, 'ability_shaman_watershield', 'Three globes of water restore 2% of maximum mana when you are hit.', NEW],
+    ['Tidal Mastery', 5, 4, 1, 'spell_nature_tranquility', 'Increases the critical effect chance of your healing spells by 5%.'],
+    ['Restorative Totems', 5, 4, 2, 'spell_nature_manaregentotem', 'Increases the effect of your Mana Spring Totem by 25% and Healing Stream Totem by 50%.'],
+    ['Mana Tide Totem', 1, 4, 3, 'spell_frost_summonwaterelemental', 'Summons a totem that restores 88 mana every 3 sec for 12 sec.'],
+    ['Healing Way', 3, 5, 2, 'spell_nature_healingway', 'Increases the amount healed by your Healing Wave spell by 25%.'],
+    ["Nature's Swiftness", 1, 5, 3, 'spell_nature_ravenform', 'When activated, your next Nature spell becomes an instant cast spell.'],
+    ['Purification', 5, 6, 3, 'spell_frost_wizardmark', 'Increases the effectiveness of your healing spells by 10%.'],
+    ['Riptide', 1, 7, 2, 'spell_nature_riptide', 'Heals a friendly target and increases your Chain Heal on that target.', NEW, 'Healing Way'],
+  ]},
+];
+// Talents the simulation models when taken
+const SIM_TALENTS = new Set(['Convection', 'Concussion', 'Call of Flame', 'Elemental Devastation', 'Elemental Focus', 'Improved Fire Nova',
+  'Thundering Strikes', 'Ancestral Knowledge', 'Mental Dexterity', 'Elemental Weapons', 'Shamanistic Focus', 'Flurry', 'Stormstrike',
+  'Mental Quickness', 'Improved Stormstrike', 'Maelstrom Weapon', 'Rage of the Farseer']);
+
+const SPECS = {
+  enh: {
+    name: 'Enhancement', title: 'Enhancement Shaman',
+    talents: {
+      'Convection': 4, 'Concussion': 5, 'Call of Flame': 3, 'Elemental Devastation': 3, 'Elemental Focus': 1, 'Improved Fire Nova': 2,
+      'Thundering Strikes': 5, 'Ancestral Knowledge': 5, 'Mental Dexterity': 3, 'Elemental Weapons': 3, 'Shamanistic Focus': 1, 'Flurry': 5,
+      'Stormstrike': 1, 'Mental Quickness': 2, 'Improved Stormstrike': 2, 'Maelstrom Weapon': 5, 'Rage of the Farseer': 1,
+    },
+    gear: gearList(['mask', 'jewel', 'truestrike', 'baron', 'gladiator', 'slashclaw', 'bloodmailG', 'marksman', 'woolies', 'bloodmailB',
+      'elven', 'blackstone', 'trinket', 'trinket', 'reaper']),
+    bar: ['ss', 'es', 'fs', 'nova', 'lb', 'searing', 'farseer', 'fury', 'potion', 'rune'],
+    blurb: 'Keep Searing Totem down for Fire Nova, Stormstrike on cooldown, shocks on cooldown, and spend 5 Maelstrom Weapon stacks on an instant, free Lightning Bolt.',
+  },
+};
+let SPEC_ID = 'enh';
+let SPEC = SPECS[SPEC_ID];
+const T = name => SPEC.talents[name] || 0;   // points in a talent
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+const CFG = {
+  // Set by applySetup()
+  ap: 0, crit: 0, spellCrit: 0, hit: 0, sp: 0, maxMana: 0, spiritRegen: 0, weapon: null,
+  crusaderAp: 0, windfury: false, chili: false, wisdom: false, manaSpring: false, jow: false, arthas: 0, armorMult: 1, targetArmor: 0, firepower: 0,
+
+  targetHp: 75000, executeRange: 0.2, bossArmor: 3731,
+  // Level 60 vs level 63 boss
+  baseMiss: 9, dodge: 6.5, glanceChance: 40, glanceMult: 0.65, critSuppression: 4.8,
+  baseSpellMiss: 17, minSpellMiss: 1,
+  resistMult: 0.97,         // average loss to partial resists on non-binary spells
+  gcd: 1.5,
+  // Abilities (Forever tooltip values; coefficients from the MythicSim engine or fitted to its results)
+  rockbiterAp: 653,
+  ssCost: 125, ssCd: 8, ssSpellBonus: 0.2, ssDebuff: 12,
+  shockCd: 6,
+  esCost: 450, esMin: 293, esMax: 309, esCoef: 0.386,
+  fsCost: 410, fsDirect: 166, fsCoef: 0.214, fsTick: 44, fsTickCoef: 0.13, fsTicks: 4, fsTickEvery: 3,
+  novaCost: 520, novaDamage: 403, novaCoef: 0.214, novaCd: 10,
+  lbCost: 220, lbCast: 2.5, lbMin: 190, lbMax: 212, lbCoef: 0.794,
+  searingCost: 170, searingMin: 40, searingMax: 54, searingEvery: 2.5, searingDuration: 55,
+  maelstromPpmPerPoint: 2, maelstromDuration: 30,
+  clearcastChance: 0.1,
+  devastationCrit: 3,       // per point, for 10 sec
+  flurryHaste: 0.05,        // per point
+  farseerHaste: 1.3, farseerDuration: 25, farseerCd: 180,
+  bloodFuryMult: 1.1, bloodFuryDuration: 15, bloodFuryCd: 120,
+  // Procs and mana
+  crusaderPpm: 1, windfuryChance: 0.2, windfuryAp: 246,
+  chiliChance: 0.05, chiliCd: 10, chiliDamage: 60,
+  jowChance: 0.5, jowMana: 59,
+  wisdomTick: 16,           // Blessing of Wisdom: 40 mana per 5 sec, as a 2 sec tick
+  manaSpringTick: 10,       // Mana Spring Totem: 10 mana per 2 sec
+  impStormstrikeRegen: 0.09,   // share of Spirit regeneration kept while the Improved Stormstrike buff is up (fitted)
+  manaTick: 2,
+};
+
+// Setup toggles (WoW Forever values where known)
+const RAID_BUFFS = [
+  { id: 'shout',  name: 'Battle Shout',               icon: 'ability_warrior_battleshout',        desc: '+139 attack power', on: true },
+  { id: 'might',  name: 'Greater Blessing of Might',  icon: 'spell_holy_greaterblessingofkings',  desc: '+133 attack power', on: true },
+  { id: 'kings',  name: 'Greater Blessing of Kings',  icon: 'spell_magic_greaterblessingofkings', desc: '+10% to all stats', on: true },
+  { id: 'wisdom', name: 'Greater Blessing of Wisdom', icon: 'spell_holy_greaterblessingofwisdom', desc: '40 mana every 5 sec', on: true },
+  { id: 'gotw',   name: 'Gift of the Wild',           icon: 'spell_nature_regeneration',          desc: '+16 to all stats', on: true },
+  { id: 'ai',     name: 'Arcane Brilliance',          icon: 'spell_holy_magicalsentry',           desc: '+31 Intellect', on: true },
+  { id: 'spirit', name: 'Prayer of Spirit',           icon: 'spell_holy_prayerofspirit',          desc: '+40 Spirit', on: true },
+  { id: 'lotp',   name: 'Leader of the Pack',         icon: 'spell_nature_unyeildingstamina',     desc: '+3% crit chance, melee and spells', on: true },
+  { id: 'soe',    name: 'Strength of Earth Totem',    icon: 'spell_nature_earthbindtotem',        desc: '+53 Strength', on: true },
+  { id: 'goa',    name: 'Grace of Air Totem',         icon: 'spell_nature_invisibilitytotem',     desc: '+89 Agility', on: true },
+  { id: 'wf',     name: 'Windfury Totem',             icon: 'spell_nature_windfury',              desc: 'Melee hits: 20% chance for an extra attack with +246 attack power', on: true },
+  { id: 'spring', name: 'Mana Spring Totem',          icon: 'spell_nature_manaregentotem',        desc: '10 mana every 2 sec', on: true },
+];
+const CONSUMABLES = [
+  { id: 'mongoose',  name: 'Elixir of the Mongoose',  icon: 'inv_potion_32',             desc: '+25 Agility, +2% melee crit chance', on: true },
+  { id: 'jujupower', name: 'Juju Power',              icon: 'inv_misc_monsterscales_11', desc: '+30 Strength', on: true },
+  { id: 'jujumight', name: 'Juju Might',              icon: 'inv_misc_monsterscales_07', desc: '+40 attack power', on: true },
+  { id: 'roids',     name: 'R.O.I.D.S.',              icon: 'inv_stone_15',              desc: '+25 Strength', on: true },
+  { id: 'sunfruit',  name: 'Blessed Sunfruit',        icon: 'inv_misc_food_41',          desc: '+10 Strength', on: true },
+  { id: 'flask',     name: 'Flask of Supreme Power',  icon: 'inv_potion_41',             desc: '+150 spell damage', on: true },
+  { id: 'arcane',    name: 'Greater Arcane Elixir',   icon: 'inv_potion_109',            desc: '+35 spell damage', on: true },
+  { id: 'firepower', name: 'Elixir of Fire Power',    icon: 'inv_potion_55',             desc: '+10 Fire spell damage', on: true },
+  { id: 'chili',     name: 'Dragonbreath Chili',      icon: 'inv_drink_17',              desc: 'Melee hits: 5% chance to deal 60 fire damage (10 sec cooldown)', on: true },
+];
+const BOSS_DEBUFFS = [
+  { id: 'sunder', name: 'Sunder Armor / Expose Armor', icon: 'ability_warrior_sunder',      desc: '-2250 armor (the two do not stack)', on: true },
+  { id: 'ff',     name: 'Faerie Fire',                 icon: 'spell_nature_faeriefire',     desc: '-505 armor', on: true },
+  { id: 'cor',    name: 'Curse of Recklessness',       icon: 'spell_shadow_unholystrength', desc: '-505 armor', on: true },
+  { id: 'arthas', name: 'Gift of Arthas',              icon: 'spell_nature_nullifydisease', desc: '+8 physical damage taken per hit', on: true },
+  { id: 'jow',    name: 'Judgement of Wisdom',         icon: 'spell_holy_righteousnessaura', desc: 'Attacks have a 50% chance to restore 59 mana', on: true },
+];
+const TOGGLE_GROUPS = [
+  { title: 'Raid buffs', items: RAID_BUFFS },
+  { title: 'Consumables', items: CONSUMABLES },
+  { title: 'Boss debuffs', items: BOSS_DEBUFFS },
+];
+const ALL_TOGGLES = TOGGLE_GROUPS.flatMap(g => g.items);
+
+// ---------------------------------------------------------------------------
+// Stats
+// ---------------------------------------------------------------------------
+const gearSum = k => SPEC.gear.reduce((n, g) => n + (g[k] || 0) + (g.ench?.[k] || 0), 0);
+const STATS = { str: 0, agi: 0, int: 0, spi: 0 };
+const weaponItem = () => SPEC.gear.find(g => g.weapon);
+const rockbiterAp = () => CFG.rockbiterAp * (1 + 0.2 / 3 * T('Elemental Weapons'));
+const dexterity = () => T('Mental Dexterity') / 3;        // share of Intellect added as attack power
+const quickness = () => 0.15 * T('Mental Quickness');     // share of Intellect added as spell damage
+
+// Unbuffed character-sheet stats from the gear list, with talents and the Rockbiter imbue included
+function gearSheet() {
+  const str = BASE.str + gearSum('str');
+  const agi = BASE.agi + gearSum('agi');
+  const int = Math.round((BASE.int + gearSum('int')) * (1 + 0.02 * T('Ancestral Knowledge')));
+  const spi = BASE.spi + gearSum('spi');
+  // Forever gear gives one hit and one crit value that count for melee and spells alike
+  const gearCrit = gearSum('critRating') / CRIT_RATING_PER_PCT;
+  const axeSpec = BASE.race === 'Orc' && weaponItem().weapon.type === 'Axe' ? 1 : 0;
+  const w = weaponItem().weapon;
+  return {
+    str, agi, int, spi,
+    ap: Math.round(BASE.ap + 2 * str + gearSum('ap') + rockbiterAp() + dexterity() * int),
+    crit: +(BASE.meleeCrit + agi * CRIT_PER_AGI + gearCrit + T('Thundering Strikes') + axeSpec).toFixed(2),
+    spellCrit: +(BASE.spellCrit + int * SPELL_CRIT_PER_INT + gearCrit + T('Thundering Strikes') + axeSpec).toFixed(2),
+    hit: gearSum('hitRating') / HIT_RATING_PER_PCT,
+    sp: Math.round(gearSum('sp') + quickness() * int),
+    wMin: w.min, wMax: w.max, wSpeed: w.speed,
+  };
+}
+
+// Custom stats (Stats tab)
+const CUSTOM_ALL = { enh: { on: false, ...gearSheet(), ...store.get('shamanSimCustomStats_enh', {}) } };
+const custom = () => CUSTOM_ALL[SPEC_ID];
+
+function applySetup() {
+  const on = id => ALL_TOGGLES.find(b => b.id === id).on;
+  const kings = on('kings') ? 1.1 : 1;
+  const all = on('gotw') ? 16 : 0;
+  const ak = 1 + 0.02 * T('Ancestral Knowledge');
+  const sheet = custom().on ? custom() : gearSheet();
+  const str = all + (on('soe') ? 53 : 0) + (on('jujupower') ? 30 : 0) + (on('roids') ? 25 : 0) + (on('sunfruit') ? 10 : 0);
+  const agi = all + (on('goa') ? 89 : 0) + (on('mongoose') ? 25 : 0);
+  const int = all + (on('ai') ? 31 : 0);
+  const spi = all + (on('spirit') ? 40 : 0);
+  STATS.str = Math.round((sheet.str + str) * kings);
+  STATS.agi = Math.round((sheet.agi + agi) * kings);
+  STATS.int = Math.round((sheet.int + int * ak) * kings);
+  STATS.spi = Math.round((sheet.spi + spi) * kings);
+  // Buffs add on top of the sheet: 2 AP per Strength, Intellect into AP and spell damage, crit per Agility / Intellect
+  CFG.ap = Math.round(sheet.ap + 2 * (STATS.str - sheet.str) + dexterity() * (STATS.int - sheet.int) +
+    (on('shout') ? BATTLE_SHOUT_AP : 0) + (on('might') ? 133 : 0) + (on('jujumight') ? 40 : 0));
+  CFG.crit = sheet.crit + (STATS.agi - sheet.agi) * CRIT_PER_AGI + (on('lotp') ? 3 : 0) + (on('mongoose') ? 2 : 0);
+  CFG.spellCrit = sheet.spellCrit + (STATS.int - sheet.int) * SPELL_CRIT_PER_INT + (on('lotp') ? 3 : 0);
+  CFG.hit = sheet.hit;
+  CFG.sp = Math.round(sheet.sp + quickness() * (STATS.int - sheet.int) + (on('flask') ? 150 : 0) + (on('arcane') ? 35 : 0));
+  CFG.firepower = on('firepower') ? 10 : 0;
+  // 1 mana per point for the first 20 Intellect, 15 after that
+  CFG.maxMana = Math.round(BASE.mana + 20 + 15 * Math.max(0, STATS.int - 20));
+  CFG.spiritRegen = STATS.spi / 5 + 17;     // per 2 sec tick when not casting
+  CFG.weapon = { min: sheet.wMin, max: sheet.wMax, speed: sheet.wSpeed };
+  CFG.crusaderAp = Math.round(200 * kings);
+  CFG.windfury = on('wf');
+  CFG.chili = on('chili');
+  CFG.wisdom = on('wisdom');
+  CFG.manaSpring = on('spring');
+  CFG.jow = on('jow');
+  CFG.arthas = on('arthas') ? 8 : 0;
+  // Boss armor after debuffs; damage reduction = armor / (armor + 400 + 85 * attacker level)
+  CFG.targetArmor = Math.max(0, CFG.bossArmor - (on('sunder') ? 2250 : 0) - (on('ff') ? 505 : 0) - (on('cor') ? 505 : 0));
+  CFG.armorMult = 1 - CFG.targetArmor / (CFG.targetArmor + 400 + 85 * 60);
+}
+applySetup();
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+const newState = () => ({
+  t: 0, mana: CFG.maxMana, gcdUntil: 0, ready: {},
+  swing: 0, cast: null,                        // cast: { ability, until }
+  buffs: { crusader: 0, devastation: 0, farseer: 0, bloodFury: 0, impSs: 0, maelstrom: 0 },
+  flurry: 0, flurryIcd: 0, maelstrom: 0, clearcast: false,
+  ssDebuffUntil: 0,
+  searing: { until: 0, next: 0 },
+  flame: { ticks: 0, next: 0, dmg: 0 },
+  chiliReady: 0, manaTimer: 0,
+  totalDamage: 0, hp: CFG.targetHp, started: false, over: false,
+  stats: {}, manaSpent: 0, manaGained: 0,
+});
+const S = newState();
+const statFor = name => S.stats[name] ??= { dmg: 0, hits: 0, crits: 0, avoided: 0 };
+
+const addMana = n => { const g = Math.min(n, CFG.maxMana - S.mana); S.mana += g; S.manaGained += g; };
+const furyMult = () => S.t < S.buffs.bloodFury ? CFG.bloodFuryMult : 1;
+const ap = () => (CFG.ap + (S.t < S.buffs.crusader ? CFG.crusaderAp : 0)) * furyMult();
+const spellPower = fire => (CFG.sp + (fire ? CFG.firepower : 0)) * furyMult();
+const meleeCrit = () => Math.max(0, CFG.crit - CFG.critSuppression + (S.t < S.buffs.devastation ? CFG.devastationCrit * T('Elemental Devastation') : 0));
+const weaponRoll = () => rand(CFG.weapon.min, CFG.weapon.max) + ap() / 14 * CFG.weapon.speed;
+const haste = () => (S.flurry > 0 ? 1 + CFG.flurryHaste * T('Flurry') : 1) * (S.t < S.buffs.farseer ? CFG.farseerHaste : 1);
+const fireMult = () => 1 + 0.05 * T('Call of Flame');
+const natureMult = () => 1 + 0.01 * T('Concussion');
+const fireTotemUp = () => S.t < S.searing.until;
+
+// ---------------------------------------------------------------------------
+// Attack tables
+// ---------------------------------------------------------------------------
+function rollWhite() {
+  let r = Math.random() * 100;
+  if ((r -= Math.max(0, CFG.baseMiss - CFG.hit)) < 0) return 'miss';
+  if ((r -= CFG.dodge) < 0) return 'dodge';
+  if ((r -= CFG.glanceChance) < 0) return 'glance';
+  if ((r -= meleeCrit()) < 0) return 'crit';
+  return 'hit';
+}
+function rollYellow() {
+  const miss = Math.max(0, CFG.baseMiss - CFG.hit);
+  const r = Math.random() * 100;
+  if (r < miss) return 'miss';
+  if (r < miss + CFG.dodge) return 'dodge';
+  return Math.random() * 100 < meleeCrit() ? 'crit' : 'hit';
+}
+function rollSpell() {
+  if (Math.random() * 100 < Math.max(CFG.minSpellMiss, CFG.baseSpellMiss - CFG.hit)) return 'miss';
+  return Math.random() * 100 < CFG.spellCrit ? 'crit' : 'hit';
+}
+
+// ---------------------------------------------------------------------------
+// Damage plumbing
+// ---------------------------------------------------------------------------
+function damageTarget(name, dmg, crit) {
+  dmg = Math.min(dmg, Math.ceil(S.hp));
+  S.totalDamage += dmg;
+  S.hp -= dmg;
+  const st = statFor(name);
+  st.dmg += dmg; st.hits++; if (crit) st.crits++;
+  if (S.hp <= 0) endFight();
+  return dmg;
+}
+
+function deal(name, dmg, crit, cls) {
+  if (S.over) return 0;
+  dmg = damageTarget(name, Math.round(dmg), crit);
+  floater(dmg + (crit ? '!' : ''), cls + (crit ? ' crit' : ''));
+  log(`<span class="${cls.startsWith('yellow') ? 'y' : 'w'}">${name} ${crit ? 'crits' : 'hits'} for ${dmg}.</span>`);
+  targetEl.classList.remove('hit'); void targetEl.offsetWidth; targetEl.classList.add('hit');
+  return dmg;
+}
+
+function avoided(name, res) {
+  if (S.over) return;
+  statFor(name).avoided++;
+  const word = res === 'dodge' ? 'Dodge' : 'Miss';
+  floater(word, 'avoid');
+  log(`${name}: ${word.toLowerCase()}.`);
+}
+
+// Effects that follow a landed melee hit. kind: 'white' | 'extra' | 'ss'
+function onMeleeHit(kind, crit) {
+  if (S.over) return;
+  if (crit && T('Flurry')) S.flurry = 3;
+  if (CFG.jow && Math.random() < CFG.jowChance) addMana(CFG.jowMana);
+  // Maelstrom Weapon: 2 procs per minute per point on melee hits
+  if (T('Maelstrom Weapon') && Math.random() < CFG.maelstromPpmPerPoint * T('Maelstrom Weapon') * CFG.weapon.speed / 60) {
+    S.maelstrom = S.t < S.buffs.maelstrom ? Math.min(5, S.maelstrom + 1) : 1;
+    S.buffs.maelstrom = S.t + CFG.maelstromDuration;
+  }
+  if (Math.random() < CFG.crusaderPpm * CFG.weapon.speed / 60) {
+    if (S.t >= S.buffs.crusader) log('<span class="r">You gain Holy Strength.</span>');
+    S.buffs.crusader = S.t + 15;
+  }
+  if (CFG.chili && S.t >= S.chiliReady && Math.random() < CFG.chiliChance) {
+    S.chiliReady = S.t + CFG.chiliCd;
+    const dmg = damageTarget('Dragonbreath Chili', CFG.chiliDamage, false);
+    floater(dmg, 'yellow bleed');
+    log(`<span class="y">Dragonbreath Chili hits for ${dmg}.</span>`);
+  }
+  // Windfury Totem: swings and Stormstrike; not its own extra attacks
+  if (CFG.windfury && kind !== 'extra' && Math.random() < CFG.windfuryChance) {
+    log('<span class="r">Windfury grants an extra attack.</span>');
+    whiteAttack(true);
+  }
+}
+
+// Effects that follow a damaging spell cast (Fire Nova, shocks, Lightning Bolt)
+function onSpellCast(landed, crit) {
+  if (landed && CFG.jow && Math.random() < CFG.jowChance) addMana(CFG.jowMana);
+  if (landed && crit && T('Elemental Devastation')) S.buffs.devastation = S.t + 10;
+  if (T('Elemental Focus') && Math.random() < CFG.clearcastChance) {
+    S.clearcast = true;
+    log('<span class="r">You gain Clearcasting.</span>');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Swings
+// ---------------------------------------------------------------------------
+function whiteAttack(extra) {
+  if (S.over) return;
+  const name = extra ? 'Windfury Attack' : 'Melee';
+  const res = rollWhite();
+  // Flurry: a crit refills the charges; any white swing then uses one (at most one per 0.5 sec)
+  if (res === 'crit' && T('Flurry')) S.flurry = 3;
+  if (S.flurry > 0 && S.t >= S.flurryIcd) { S.flurry--; S.flurryIcd = S.t + 0.5; }
+  if (res === 'miss' || res === 'dodge') return avoided(name, res);
+  let dmg = (weaponRoll() + (extra ? CFG.windfuryAp / 14 * CFG.weapon.speed : 0)) * CFG.armorMult;
+  if (res === 'glance') dmg *= CFG.glanceMult;
+  if (res === 'crit') dmg *= 2;
+  deal(name, dmg + CFG.arthas, res === 'crit', 'white');
+  onMeleeHit(extra ? 'extra' : 'white', res === 'crit');
+}
+
+// ---------------------------------------------------------------------------
+// Abilities
+// ---------------------------------------------------------------------------
+const convection = () => 0.02 * T('Convection');
+const shockCost = base => base * (1 - convection() - (T('Shamanistic Focus') ? 0.45 : 0));
+const maelstromStacks = () => S.t < S.buffs.maelstrom ? S.maelstrom : 0;
+// Clearcasting makes the next shock, Fire Nova or Lightning Bolt free
+const spellCost = base => S.clearcast ? 0 : base;
+// Stormstrike's debuff: +20% to the next Lightning Bolt or Earth Shock, then it is used up
+function stormstrikeBonus() {
+  if (S.t >= S.ssDebuffUntil) return 1;
+  S.ssDebuffUntil = 0;
+  return 1 + CFG.ssSpellBonus;
+}
+function castSpell(name, base, fire, binary, extraMult = 1) {
+  S.clearcast = false;
+  const res = rollSpell();
+  if (res === 'miss') { avoided(name, res); onSpellCast(false, false); return false; }
+  const crit = res === 'crit';
+  deal(name, base * extraMult * (binary ? 1 : CFG.resistMult) * (crit ? 1.5 : 1), crit, 'yellow');
+  onSpellCast(true, crit);
+  return true;
+}
+
+const ABILITIES = [
+  { id: 'ss', name: 'Stormstrike', icon: 'ability_shaman_stormstrike', cd: CFG.ssCd, gcd: true,
+    cost: () => CFG.ssCost,
+    desc: 'Instantly strike for normal weapon damage. Your next Lightning Bolt or Earth Shock on the target deals 20% more damage (12 sec).',
+    use() {
+      if (T('Improved Stormstrike')) S.buffs.impSs = S.t + 15;
+      const res = rollYellow();
+      if (res === 'miss' || res === 'dodge') return avoided(this.name, res);
+      const crit = res === 'crit';
+      S.ssDebuffUntil = S.t + CFG.ssDebuff;
+      deal(this.name, weaponRoll() * CFG.armorMult * (crit ? 2 : 1) + CFG.arthas, crit, 'yellow');
+      onMeleeHit('ss', crit);
+    } },
+  { id: 'es', name: 'Earth Shock', icon: 'spell_nature_earthshock', cd: CFG.shockCd, gcd: true, shock: true,
+    cost: () => spellCost(shockCost(CFG.esCost)),
+    desc: 'Instantly deals 293 to 309 Nature damage. Shares a 6 sec cooldown with Flame Shock.',
+    use() {
+      castSpell(this.name, (rand(CFG.esMin, CFG.esMax) + CFG.esCoef * spellPower(false)) * natureMult(), false, true, stormstrikeBonus());
+    } },
+  { id: 'fs', name: 'Flame Shock', icon: 'spell_fire_flameshock', cd: CFG.shockCd, gcd: true, shock: true,
+    cost: () => spellCost(shockCost(CFG.fsCost)),
+    desc: 'Instantly deals 166 Fire damage and 176 more over 12 sec. Shares a 6 sec cooldown with Earth Shock.',
+    use() {
+      const sp = spellPower(true);
+      if (castSpell(this.name, (CFG.fsDirect + CFG.fsCoef * sp) * fireMult(), true, false)) {
+        // The burn is fixed when applied; its ticks can crit
+        S.flame = { ticks: CFG.fsTicks, next: S.t + CFG.fsTickEvery, dmg: (CFG.fsTick + CFG.fsTickCoef * sp) * fireMult() * CFG.resistMult };
+      }
+    } },
+  { id: 'nova', name: 'Fire Nova', icon: 'spell_fire_sealoffire', cd: () => CFG.novaCd - 2 * T('Improved Fire Nova'), gcd: true,
+    cost: () => spellCost(CFG.novaCost),
+    desc: 'Instantly deals about 403 Fire damage around your active Fire totem. Requires Searing Totem to be down.',
+    usable: () => fireTotemUp(),
+    use() {
+      castSpell(this.name, (CFG.novaDamage + CFG.novaCoef * spellPower(true)) * fireMult() * (1 + 0.1 * T('Improved Fire Nova')), true, false);
+    } },
+  { id: 'lb', name: 'Lightning Bolt', icon: 'spell_nature_lightning', cd: 0, gcd: true,
+    cost: () => spellCost(CFG.lbCost * Math.max(0, 1 - convection() - 0.2 * maelstromStacks())),
+    castTime: () => CFG.lbCast * Math.max(0, 1 - 0.2 * maelstromStacks()),
+    desc: 'Deals 190 to 212 Nature damage. 2.5 sec cast; each Maelstrom Weapon stack cuts the cast time and mana cost by 20%, so 5 stacks make it instant and free. Casting pauses your swing.',
+    onStart() { S.maelstrom = 0; S.buffs.maelstrom = 0; },
+    use() {
+      castSpell(this.name, (rand(CFG.lbMin, CFG.lbMax) + CFG.lbCoef * spellPower(false)) * natureMult(), false, false, stormstrikeBonus());
+    } },
+  { id: 'searing', name: 'Searing Totem', icon: 'spell_fire_searingtotem', cd: 0, gcd: true, gcdTime: 1,
+    cost: () => CFG.searingCost,
+    desc: 'Summons a totem for 55 sec that attacks for 40 to 54 Fire damage every 2.5 sec. Fire Nova needs an active Fire totem.',
+    use() { S.searing = { until: S.t + CFG.searingDuration, next: S.t + CFG.searingEvery }; log('<span class="r">Searing Totem summoned.</span>'); } },
+  { id: 'farseer', name: 'Rage of the Farseer', icon: 'spell_nature_bloodlust', cd: CFG.farseerCd, gcd: false,
+    cost: () => 0,
+    desc: 'Increases your attack speed by 30% for 25 sec. Not on the global cooldown.',
+    use() { S.buffs.farseer = S.t + CFG.farseerDuration; log('<span class="r">You gain Rage of the Farseer.</span>'); } },
+  { id: 'fury', name: 'Blood Fury', icon: 'racial_orc_berserkerstrength', cd: CFG.bloodFuryCd, gcd: false,
+    cost: () => 0,
+    desc: 'Orc racial: increases attack power and spell damage by 10% for 15 sec. Not on the global cooldown.',
+    use() { S.buffs.bloodFury = S.t + CFG.bloodFuryDuration; log('<span class="r">You gain Blood Fury.</span>'); } },
+  { id: 'potion', name: 'Major Mana Potion', icon: 'inv_potion_76', cd: 120, gcd: false,
+    cost: () => 0,
+    desc: 'Restores 1350 to 2250 mana. 2 min cooldown.',
+    use() { gainMana(Math.round(rand(1350, 2250)), this.name); } },
+  { id: 'rune', name: 'Demonic Rune', icon: 'inv_misc_rune_04', cd: 120, gcd: false,
+    cost: () => 0,
+    desc: 'Restores 900 to 1500 mana. 2 min cooldown, separate from potions.',
+    use() { gainMana(Math.round(rand(900, 1500)), this.name); } },
+];
+const ABILITY = Object.fromEntries(ABILITIES.map(a => [a.id, a]));
+const cdOf = a => typeof a.cd === 'function' ? a.cd() : a.cd;
+const barAbilities = () => SPEC.bar.map(id => ABILITY[id]);
+
+function gainMana(n, name) {
+  addMana(n);
+  floater(`+${n} Mana`, 'mana');
+  log(`<span class="r">${name}: +${n} mana.</span>`);
+}
+
+function press(a) {
+  if (!S.started || S.over) return;
+  const cost = a.cost();
+  if (S.cast || S.t < (S.ready[a.id] || 0) || (a.gcd && S.t < S.gcdUntil) || S.mana < cost || (a.usable && !a.usable())) return deny(a);
+  const castTime = a.castTime ? a.castTime() : 0;
+  S.mana -= cost; S.manaSpent += cost;
+  // Earth Shock and Flame Shock share one cooldown
+  for (const b of a.shock ? ABILITIES.filter(x => x.shock) : [a]) S.ready[b.id] = S.t + cdOf(b);
+  if (a.gcd) S.gcdUntil = S.t + (a.gcdTime || CFG.gcd);
+  if (a.onStart) a.onStart();
+  if (castTime > 0) S.cast = { ability: a, until: S.t + castTime };   // a hard cast holds the swing and restarts it afterwards
+  else a.use();
+}
+
+function deny(a) {
+  if (!a.el) return;
+  a.el.classList.remove('denied'); void a.el.offsetWidth; a.el.classList.add('denied');
+}
+
+// ---------------------------------------------------------------------------
+// Simulation tick
+// ---------------------------------------------------------------------------
+function tick(dt) {
+  S.t += dt;
+
+  // Mana every 2 sec: Blessing of Wisdom, Mana Spring Totem, and a share of Spirit regeneration after Stormstrike
+  S.manaTimer += dt;
+  while (S.manaTimer >= CFG.manaTick) {
+    S.manaTimer -= CFG.manaTick;
+    addMana((CFG.wisdom ? CFG.wisdomTick : 0) + (CFG.manaSpring ? CFG.manaSpringTick : 0) +
+      (S.t < S.buffs.impSs ? CFG.impStormstrikeRegen * CFG.spiritRegen : 0));
+  }
+
+  // Searing Totem attacks: spell hit and crit, no spell damage scaling
+  while (S.t < S.searing.until && S.t >= S.searing.next && !S.over) {
+    S.searing.next += CFG.searingEvery;
+    const res = rollSpell();
+    if (res === 'miss') { statFor('Searing Totem').avoided++; continue; }
+    const crit = res === 'crit';
+    const dmg = damageTarget('Searing Totem', Math.round(rand(CFG.searingMin, CFG.searingMax) * fireMult() * CFG.resistMult * (crit ? 1.5 : 1)), crit);
+    floater(dmg + (crit ? '!' : ''), 'yellow bleed');
+    log(`<span class="y">Searing Totem ${crit ? 'crits' : 'hits'} for ${dmg}.</span>`);
+  }
+
+  // Flame Shock burn
+  while (S.flame.ticks > 0 && S.t >= S.flame.next && !S.over) {
+    S.flame.ticks--; S.flame.next += CFG.fsTickEvery;
+    const crit = Math.random() * 100 < CFG.spellCrit;
+    const dmg = damageTarget('Flame Shock (burn)', Math.round(S.flame.dmg * (crit ? 1.5 : 1)), crit);
+    floater(dmg + (crit ? '!' : ''), 'yellow bleed');
+    log(`<span class="y">Flame Shock burns for ${dmg}.</span>`);
+  }
+
+  if (S.cast) {
+    if (S.t >= S.cast.until) { const a = S.cast.ability; S.cast = null; S.swing = 0; a.use(); }
+  } else {
+    S.swing += dt * haste() / CFG.weapon.speed;
+    if (S.swing >= 1) { S.swing -= 1; whiteAttack(false); }
+  }
+}
+
+// Class-specific pieces used by the shared interface code
+function classBuffs() {
+  const buffs = [];
+  const stacks = maelstromStacks();
+  if (stacks) buffs.push(['spell_shaman_maelstromweapon', `Maelstrom Weapon (${stacks}) ${fmtTime(S.buffs.maelstrom - S.t)}`]);
+  if (S.clearcast) buffs.push(['spell_shadow_manaburn', 'Clearcasting']);
+  if (S.t < S.ssDebuffUntil) buffs.push(['ability_shaman_stormstrike', `Stormstrike ${fmtTime(S.ssDebuffUntil - S.t)}`]);
+  if (fireTotemUp()) buffs.push(['spell_fire_searingtotem', `Searing Totem ${fmtTime(S.searing.until - S.t)}`]);
+  if (S.flame.ticks > 0) buffs.push(['spell_fire_flameshock', `Flame Shock (${S.flame.ticks})`]);
+  if (S.flurry > 0) buffs.push(['ability_ghoulfrenzy', `Flurry (${S.flurry})`]);
+  if (S.t < S.buffs.devastation) buffs.push(['spell_fire_elementaldevastation', `Elemental Devastation ${fmtTime(S.buffs.devastation - S.t)}`]);
+  if (S.t < S.buffs.farseer) buffs.push(['spell_nature_bloodlust', `Rage of the Farseer ${fmtTime(S.buffs.farseer - S.t)}`]);
+  if (S.t < S.buffs.bloodFury) buffs.push(['racial_orc_berserkerstrength', `Blood Fury ${fmtTime(S.buffs.bloodFury - S.t)}`]);
+  if (S.t < S.buffs.crusader) buffs.push(['spell_holy_blessingofstrength', `Holy Strength ${fmtTime(S.buffs.crusader - S.t)}`]);
+  if (S.cast) buffs.push([S.cast.ability.icon, `Casting ${S.cast.ability.name} ${fmtTime(Math.max(0, S.cast.until - S.t))}`]);
+  return buffs;
+}
+function sourceInfo(name) {
+  const ability = ABILITIES.find(x => x.name === name);
+  if (ability) return { label: name, icon: ability.icon };
+  return {
+    'Melee': { label: 'Melee', icon: weaponItem().icon },
+    'Windfury Attack': { label: 'Windfury Attack', icon: 'spell_nature_windfury' },
+    'Flame Shock (burn)': { label: 'Flame Shock (burn)', icon: 'spell_fire_flameshock' },
+    'Dragonbreath Chili': { label: 'Dragonbreath Chili', icon: 'inv_drink_17' },
+  }[name] || { label: name, icon: 'inv_misc_questionmark' };
+}
+// Lightning Bolt lights up at 5 Maelstrom Weapon stacks
+const abilityLit = a => a.id === 'lb' && maelstromStacks() === 5;
+
+// ---------------------------------------------------------------------------
+// UI
+// ---------------------------------------------------------------------------
+let last = performance.now();
+const arenaEl = $('arena'), targetEl = $('target'), logEl = $('log');
+
+function floater(text, cls) {
+  if (!arenaEl.offsetParent) return;   // combat tab hidden
+  const el = document.createElement('div');
+  el.className = 'floater ' + cls;
+  el.textContent = text;
+  el.style.left = rand(25, 75) + '%';
+  el.style.top = rand(35, 55) + '%';
+  el.addEventListener('animationend', () => el.remove());
+  arenaEl.appendChild(el);
+}
+
+function log(html) {
+  const el = document.createElement('div');
+  el.innerHTML = html;
+  logEl.appendChild(el);
+  while (logEl.children.length > 8) logEl.firstChild.remove();
+}
+
+function fmtTime(s) {
+  if (s >= 60) return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+  return s >= 10 ? Math.ceil(s) : s.toFixed(1);
+}
+
+// --- Ability bar and keybinds (per spec, saved in this browser) ---
+let rebinding = false, rebindTarget = null;
+const RESERVED_KEYS = ['Ctrl+w', 'Ctrl+t', 'Ctrl+n', 'Ctrl+Shift+w', 'Ctrl+Shift+t', 'Ctrl+Shift+n'];
+const RESERVED_NOTE = 'Ctrl+W, Ctrl+T and Ctrl+N belong to the browser and cannot be used.';
+const DEFAULT_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+const keyStore = () => 'shamanSimKeybinds_' + SPEC_ID;
+const CODE_KEYS = {
+  Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backquote: '`', Semicolon: ';', Quote: "'",
+  Comma: ',', Period: '.', Slash: '/', Backslash: '\\', Space: ' ',
+};
+function baseKey(e) {
+  const c = e.code || '';
+  if (/^Digit\d$/.test(c)) return c.slice(5);
+  if (/^Key[A-Z]$/.test(c)) return c.slice(3).toLowerCase();
+  if (/^Numpad\d$/.test(c)) return 'Num' + c.slice(6);
+  if (CODE_KEYS[c]) return CODE_KEYS[c];
+  return e.key.length === 1 ? e.key.toLowerCase() : e.key;
+}
+const normKey = e => (e.ctrlKey ? 'Ctrl+' : '') + (e.shiftKey ? 'Shift+' : '') + baseKey(e);
+function keyLabel(k) {
+  if (!k) return '';
+  const parts = k.split(/\+(?=.)/);
+  const base = parts.pop();
+  const mods = parts.map(m => m[0]).join('');
+  const name = base === ' ' ? 'Spc' : base.length === 1 ? base.toUpperCase() : base.replace('Arrow', '').slice(0, 4);
+  return (mods ? mods + '-' : '') + name;
+}
+function showKeys() { for (const a of barAbilities()) a.keyEl.textContent = keyLabel(a.key); }
+function saveKeys() { store.set(keyStore(), Object.fromEntries(barAbilities().map(a => [a.id, a.key]))); }
+function selectRebind(a) {
+  rebindTarget = a;
+  for (const b of barAbilities()) b.el.classList.toggle('rebind-target', b === a);
+  $('rebind-hint').classList.remove('warn');
+  $('rebind-hint').textContent = a ? `Press a key for ${a.name}, with Shift or Ctrl if you like (Esc to cancel). ${RESERVED_NOTE}`
+    : `Click an ability, then press the key you want. ${RESERVED_NOTE}`;
+}
+function setRebinding(on) {
+  rebinding = on;
+  $('bar').classList.toggle('editing', on);
+  $('keybar').classList.toggle('editing', on);
+  $('rebind').classList.toggle('active', on);
+  $('rebind').textContent = on ? 'Done' : 'Change keybinds';
+  selectRebind(null);
+  if (!on) $('rebind-hint').textContent = '';
+}
+
+function buildBar() {
+  const bar = $('bar');
+  bar.innerHTML = '';
+  const list = barAbilities();
+  bar.style.gridTemplateColumns = `repeat(${list.length}, 1fr)`;
+  const saved = store.get(keyStore(), {});
+  list.forEach((a, i) => {
+    a.defaultKey = DEFAULT_KEYS[i] || '';
+    a.key = typeof saved[a.id] === 'string' ? saved[a.id] : a.defaultKey;
+    const el = document.createElement('button');
+    el.className = 'ability';
+    const cd = cdOf(a);
+    el.title = `${a.name}\n${Math.round(a.cost()) ? Math.round(a.cost()) + ' mana' : 'No cost'}${cd ? ' · ' + (cd >= 60 ? cd / 60 + ' min' : cd + ' sec') + ' cooldown' : ''}\n${a.desc}`;
+    el.style.backgroundImage = `url(${iconUrl(a.icon)})`;
+    el.innerHTML = `<span class="key"></span>` + (Math.round(a.cost()) ? `<span class="cost">${Math.round(a.cost())}</span>` : '') +
+      `<div class="cdmask"></div><div class="cdtext"></div>`;
+    el.addEventListener('click', () => { if (rebinding) selectRebind(a); else press(a); });
+    a.el = el; a.mask = el.querySelector('.cdmask'); a.cdText = el.querySelector('.cdtext'); a.keyEl = el.querySelector('.key');
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.append(el, a.name);
+    bar.appendChild(slot);
+  });
+  showKeys();
+}
+
+$('rebind').addEventListener('click', () => setRebinding(!rebinding));
+$('rebind-reset').addEventListener('click', () => {
+  for (const a of barAbilities()) a.key = a.defaultKey;
+  saveKeys(); showKeys(); selectRebind(null);
+});
+document.addEventListener('keydown', e => {
+  if (e.repeat || e.altKey || e.metaKey || e.target.tagName === 'INPUT') return;
+  if (['Shift', 'Control', 'Alt', 'Meta', 'Tab', 'CapsLock'].includes(e.key)) return;
+  const key = normKey(e);
+  if (rebinding) {
+    e.preventDefault();
+    if (e.key === 'Escape') return rebindTarget ? selectRebind(null) : setRebinding(false);
+    if (!rebindTarget) return;
+    if (RESERVED_KEYS.includes(key)) {
+      $('rebind-hint').classList.add('warn');
+      $('rebind-hint').textContent = `${key.replace(/[a-z]$/, c => c.toUpperCase())} is a browser shortcut and cannot be bound. Pick another key for ${rebindTarget.name}.`;
+      return;
+    }
+    for (const a of barAbilities()) if (a.key === key) a.key = '';
+    rebindTarget.key = key;
+    saveKeys(); showKeys(); selectRebind(null);
+    return;
+  }
+  const a = barAbilities().find(a => a.key && a.key === key);
+  if (a) { e.preventDefault(); press(a); }
+});
+
+// --- Fight overview (Warcraft Logs style) and reset ---
+function endFight() {
+  S.over = true;
+  S.hp = 0;
+  const n = v => Math.round(v).toLocaleString();
+  const pct = (x, of) => of ? (x / of * 100).toFixed(1) + '%' : '-';
+  const sources = Object.entries(S.stats).sort((x, y) => y[1].dmg - x[1].dmg);
+  const top = sources.length ? sources[0][1].dmg : 1;
+  let casts = 0, hits = 0, crits = 0, avoid = 0;
+  const rows = sources.map(([name, st]) => {
+    const info = sourceInfo(name);
+    const stCasts = st.hits + st.avoided;
+    casts += stCasts; avoid += st.avoided; hits += st.hits; crits += st.crits;
+    return `<tr><td class="wcl-name"><img src="${iconUrl(info.icon)}" alt="">${info.label}</td>` +
+      `<td class="wcl-amount"><span class="wcl-pct">${pct(st.dmg, S.totalDamage)}</span>` +
+      `<span class="wcl-bar"><i style="width:${st.dmg / top * 100}%"></i></span><span class="wcl-total">${n(st.dmg)}</span></td>` +
+      `<td class="num">${stCasts}</td><td class="num">${stCasts ? n(st.dmg / stCasts) : '-'}</td>` +
+      `<td class="num">${st.hits}</td><td class="num">${st.hits ? n(st.dmg / st.hits) : '-'}</td>` +
+      `<td class="num">${pct(st.crits, st.hits)}</td><td class="num">${pct(st.avoided, stCasts)}</td>` +
+      `<td class="num">${(st.dmg / S.t).toFixed(1)}</td></tr>`;
+  }).join('');
+  $('summary-body').innerHTML =
+    `<div class="wcl-meta">Fight length <b>${fmtTime(S.t)}</b> · Mana spent <b>${n(S.manaSpent)}</b> · Mana gained <b>${n(S.manaGained)}</b> · ` +
+    `Mana left <b>${n(S.mana)}</b></div>` +
+    `<table class="wcl"><tr><th>Name</th><th>Amount</th><th class="num">Casts</th><th class="num">Avg Cast</th>` +
+    `<th class="num">Hits</th><th class="num">Avg Hit</th><th class="num">Crit %</th><th class="num">Miss %</th><th class="num">DPS</th></tr>` +
+    rows +
+    `<tr class="wcl-totalrow"><td>Total</td><td class="wcl-amount"><span class="wcl-pct">100%</span><span class="wcl-bar"></span>` +
+    `<span class="wcl-total">${n(S.totalDamage)}</span></td><td class="num">${casts}</td><td class="num">-</td>` +
+    `<td class="num">${hits}</td><td class="num">-</td><td class="num">${pct(crits, hits)}</td><td class="num">${pct(avoid, casts)}</td>` +
+    `<td class="num">${(S.totalDamage / S.t).toFixed(1)}</td></tr></table>`;
+  $('summary').classList.add('show');
+}
+
+function reset() {
+  Object.assign(S, newState());
+  $('hpinput').value = CFG.targetHp;
+  logEl.innerHTML = '';
+  arenaEl.querySelectorAll('.floater').forEach(el => el.remove());
+  $('summary').classList.remove('show');
+  last = performance.now();
+}
+$('hpinput').value = CFG.targetHp;
+$('hpinput').addEventListener('input', e => {
+  const v = Math.round(Number(e.target.value));
+  if (!Number.isFinite(v) || v < 1000 || S.started) return;
+  CFG.targetHp = Math.min(v, 100000000);
+  S.hp = CFG.targetHp;
+});
+$('hpinput').addEventListener('change', e => { e.target.value = CFG.targetHp; });
+$('start').addEventListener('click', () => { S.started = true; last = performance.now(); });
+document.querySelectorAll('.reset').forEach(btn => btn.addEventListener('click', reset));
+
+// --- Tabs ---
+for (const btn of document.querySelectorAll('nav button')) {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + btn.dataset.tab));
+  });
+}
+
+// --- Gear tab ---
+function renderGearTab() {
+  const pctOf = (rating, per) => `+${(rating / per).toFixed(1)}%`;
+  const statText = g => [
+    g.weapon && `${g.weapon.min}-${g.weapon.max} damage, ${g.weapon.speed.toFixed(2)} speed`,
+    g.str && `+${g.str} Str`, g.agi && `+${g.agi} Agi`, g.int && `+${g.int} Int`, g.ap && `+${g.ap} AP`, g.sp && `+${g.sp} spell damage`,
+    g.critRating && `${pctOf(g.critRating, CRIT_RATING_PER_PCT)} crit`, g.hitRating && `${pctOf(g.hitRating, HIT_RATING_PER_PCT)} hit`,
+    g.note,
+  ].filter(Boolean).join(', ');
+  const stat = (label, value) => `<div class="stat"><b>${value}</b>${label}</div>`;
+  const row = g => g.name
+    ? `<tr><td class="dim">${g.slot}</td><td style="width:36px"><img class="talent-icon" src="${iconUrl(g.icon)}" alt=""></td>` +
+      `<td><span class="q-${g.q}">${g.name}</span>${g.enchant ? `<div class="ench">${g.enchant}</div>` : ''}</td><td>${statText(g)}</td></tr>`
+    : `<tr><td class="dim">${g.slot}</td><td></td><td class="dim">Empty</td><td></td></tr>`;
+  $('tab-gear').innerHTML =
+    (custom().on ? `<h2>Custom stats are active (Stats tab): the gear below is not used for stats.</h2>` : '') +
+    `<div class="statgrid">` +
+      stat('Attack power (buffed)', CFG.ap) + stat('Spell damage (buffed)', CFG.sp) +
+      stat('Melee crit chance', CFG.crit.toFixed(2) + '%') + stat('Spell crit chance', CFG.spellCrit.toFixed(2) + '%') +
+      stat('Hit chance (melee and spells)', '+' + CFG.hit + '%') + stat('Maximum mana', CFG.maxMana) +
+      stat('Strength', STATS.str) + stat('Agility', STATS.agi) + stat('Intellect', STATS.int) +
+    `</div>` +
+    `<table><tr><th>Slot</th><th></th><th>Item</th><th>Stats used by the sim</th></tr>${SPEC.gear.map(row).join('')}</table>` +
+    `<footer>Gear and enchants from the MythicSim WoW Forever ${SPEC.title} tier-list preset (pre-raid, both trinket slots empty). ` +
+    `${BASE.race} shaman. Hit and crit on Forever gear count for melee and spells alike. Attack power = ${BASE.ap} base + 2 per Strength + gear + buffs. ` +
+    `Attack power includes Rockbiter Weapon (${Math.round(rockbiterAp())}) and Intellect from Mental Dexterity; spell damage includes ${Math.round(quickness() * 100)}% of Intellect from Mental Quickness. ` +
+    `Boss armor after debuffs: ${CFG.targetArmor} (${((1 - CFG.armorMult) * 100).toFixed(1)}% physical damage reduction). ` +
+    `Crusader: about 1 proc per minute, +100 Strength for 15 sec. Weapon damage and enchant values are Classic figures.</footer>`;
+}
+
+// --- Talents tab ---
+function renderTalentsTab() {
+  const treePoints = tree => tree.talents.reduce((n, t) => n + T(t[0]), 0);
+  const treeHtml = tree => {
+    let cells = '';
+    for (const [name, max, row, col, icon, desc, isNew, req] of tree.talents) {
+      const pts = T(name);
+      const state = pts === 0 ? 'empty' : pts === max ? 'full' : 'partial';
+      if (req) {
+        const from = tree.talents.find(t => t[0] === req);
+        cells += `<div class="tlink ${pts ? 'on' : ''}" style="grid-column:${col};grid-row:${from[2]} / ${row + 1}"></div>`;
+      }
+      const tip = `${name} (${pts}/${max})${isNew ? ' - new in Forever' : ''}\n${desc}` +
+        (pts ? `\n${SIM_TALENTS.has(name) ? 'Simulated' : 'No effect in this simulation'}` : '');
+      cells += `<div class="tnode ${state}" style="grid-column:${col};grid-row:${row};background-image:url(${iconUrl(icon)})" title="${tip.replace(/"/g, '&quot;')}">` +
+        (isNew ? '<i>new</i>' : '') + `<span>${pts}/${max}</span></div>`;
+    }
+    return `<div class="tree"><h2>${tree.name} <span class="dim">(${treePoints(tree)})</span></h2><div class="tgrid">${cells}</div></div>`;
+  };
+  const taken = TREES.flatMap(tree => tree.talents.filter(t => T(t[0]) > 0));
+  $('tab-talents').innerHTML =
+    `<div class="trees">${TREES.map(treeHtml).join('')}</div>` +
+    `<h2>Talents taken</h2><table>` +
+    taken.map(([name, max, , , icon, desc]) =>
+      `<tr><td style="width:36px"><img class="talent-icon" src="${iconUrl(icon)}" alt=""></td>` +
+      `<td><b>${name}</b><div class="dim">${desc}</div></td><td class="rank">${T(name)} / ${max}</td>` +
+      `<td><span class="tag ${SIM_TALENTS.has(name) ? 'sim' : 'off'}">${SIM_TALENTS.has(name) ? 'Simulated' : 'No effect here'}</span></td></tr>`).join('') +
+    `</table>` +
+    `<footer>${TREES.map(treePoints).join(' / ')} (51 points). ${SPEC.name} build from the MythicSim preset; talents are fixed, hover one for details. ` +
+    `"No effect here" means the talent is taken but does nothing in this simulation.</footer>`;
+}
+
+// --- Stats tab: custom character stats, independent of the gear list ---
+const STAT_FIELDS = [
+  ['str', 'Strength', 1, 0, 2000], ['agi', 'Agility', 1, 0, 2000], ['int', 'Intellect', 1, 0, 2000], ['spi', 'Spirit', 1, 0, 2000],
+  ['ap', 'Attack power', 1, 0, 10000], ['sp', 'Spell damage', 1, 0, 5000],
+  ['crit', 'Melee crit chance %', 0.01, 0, 100], ['spellCrit', 'Spell crit chance %', 0.01, 0, 100], ['hit', 'Hit chance %', 0.1, 0, 50],
+  ['wMin', 'Weapon min damage', 1, 1, 2000], ['wMax', 'Weapon max damage', 1, 1, 2000], ['wSpeed', 'Weapon speed', 0.1, 1, 4],
+];
+function renderResultStats() {
+  const stat = (label, value) => `<div class="stat"><b>${value}</b>${label}</div>`;
+  $('stats-result').innerHTML =
+    stat('Attack power (buffed)', CFG.ap) + stat('Spell damage (buffed)', CFG.sp) +
+    stat('Melee crit chance (buffed)', CFG.crit.toFixed(2) + '%') + stat('Spell crit chance (buffed)', CFG.spellCrit.toFixed(2) + '%') +
+    stat('Hit chance', '+' + CFG.hit + '%') + stat('Maximum mana', CFG.maxMana) +
+    stat('Strength (buffed)', STATS.str) + stat('Agility (buffed)', STATS.agi) + stat('Intellect (buffed)', STATS.int);
+}
+function fillStatsTab() {
+  $('custom-on').checked = custom().on;
+  $('custom-fields').classList.toggle('off', !custom().on);
+  $('tab-stats').querySelectorAll('input[data-k]').forEach(el => { el.value = custom()[el.dataset.k]; });
+}
+function setupChanged() {
+  applySetup();
+  if (!S.started) S.mana = CFG.maxMana;
+  S.mana = Math.min(S.mana, CFG.maxMana);
+  renderGearTab(); renderResultStats();
+}
+{
+  $('tab-stats').innerHTML =
+    `<label class="custom-toggle"><input type="checkbox" id="custom-on"> Use custom stats instead of the gear list</label>` +
+    `<div class="fields" id="custom-fields">` +
+    STAT_FIELDS.map(([k, label, step, min, max]) =>
+      `<label>${label}<input type="number" data-k="${k}" step="${step}" min="${min}" max="${max}"></label>`).join('') +
+    `</div>` +
+    `<button class="plain-btn" id="custom-copy">Copy current gear into the fields</button>` +
+    `<h2>Resulting stats in the sim</h2><div class="statgrid" id="stats-result"></div>` +
+    `<footer>Enter your unbuffed character-sheet values, with talents and the Rockbiter Weapon imbue included. Raid buffs and consumables from the left panel are added on top; ` +
+    `Strength, Agility, Intellect and Spirit are used to work out what those buffs add. The weapon enchant (Crusader) and talents stay as they are. ` +
+    `Custom stats are kept separately for each spec, apply immediately, and are saved in this browser.</footer>`;
+  const save = () => { store.set('shamanSimCustomStats_' + SPEC_ID, custom()); setupChanged(); };
+  $('custom-on').addEventListener('change', e => { custom().on = e.target.checked; $('custom-fields').classList.toggle('off', !custom().on); save(); });
+  $('custom-fields').addEventListener('input', e => {
+    const f = STAT_FIELDS.find(f => f[0] === e.target.dataset.k);
+    const v = Number(e.target.value);
+    if (!f || e.target.value === '' || !Number.isFinite(v)) return;
+    custom()[f[0]] = Math.min(f[4], Math.max(f[3], v));
+    save();
+  });
+  $('custom-fields').addEventListener('change', fillStatsTab);
+  $('custom-copy').addEventListener('click', () => { Object.assign(custom(), gearSheet()); fillStatsTab(); save(); });
+}
+
+// --- Setup panel: raid buffs, consumables, boss debuffs ---
+{
+  const panel = $('buffpanel');
+  const draw = () => {
+    panel.innerHTML = TOGGLE_GROUPS.map((g, i) =>
+      `<section><h2>${g.title}</h2>` +
+      `<div class="buffbtns"><button data-group="${i}" data-on="1">All</button><button data-group="${i}" data-on="">None</button></div>` +
+      g.items.map(b =>
+        `<label class="rbuff ${b.on ? 'on' : ''}" title="${b.desc}"><input type="checkbox" data-id="${b.id}" ${b.on ? 'checked' : ''}>` +
+        `<img src="${iconUrl(b.icon)}" alt=""><span><b>${b.name}</b><small>${b.desc}</small></span></label>`).join('') +
+      `</section>`).join('');
+  };
+  const changed = () => { draw(); setupChanged(); };
+  panel.addEventListener('change', e => {
+    ALL_TOGGLES.find(b => b.id === e.target.dataset.id).on = e.target.checked;
+    changed();
+  });
+  panel.addEventListener('click', e => {
+    if (!e.target.dataset.group) return;
+    TOGGLE_GROUPS[e.target.dataset.group].items.forEach(b => b.on = !!e.target.dataset.on);
+    changed();
+  });
+  draw();
+}
+
+// --- Spec switch ---
+function setSpec(id) {
+  SPEC_ID = id; SPEC = SPECS[id];
+  store.set('shamanSimSpec', id);
+  if (rebinding) setRebinding(false);
+  applySetup();
+  reset();
+  document.querySelectorAll('#specbar button').forEach(b => b.classList.toggle('active', b.dataset.spec === id));
+  $('spec-title').textContent = SPEC.title;
+  document.title = `WoW Forever ${SPEC.title} Simulator`;
+  buildBar(); renderGearTab(); renderTalentsTab(); fillStatsTab(); renderResultStats();
+  $('footer').textContent = `${SPEC.blurb} Press Start fight, then use the keys shown on the buttons, or click, to use abilities. ` +
+    `See the Gear, Talents and Stats tabs for the setup.`;
+}
+document.querySelectorAll('#specbar button').forEach(b => b.addEventListener('click', () => { if (b.dataset.spec !== SPEC_ID) setSpec(b.dataset.spec); }));
+
+// --- Frame rendering ---
+function render() {
+  arenaEl.classList.toggle('idle', !S.started);
+  const hpPct = S.hp / CFG.targetHp * 100;
+  $('hpfill').style.width = hpPct + '%';
+  $('hpbar').classList.toggle('execute', S.hp <= CFG.targetHp * CFG.executeRange);
+  $('hptext').textContent = `${Math.ceil(S.hp).toLocaleString()} / ${CFG.targetHp.toLocaleString()} (${Math.ceil(hpPct)}%)`;
+  $('ragefill').style.width = S.mana / CFG.maxMana * 100 + '%';
+  $('ragetext').textContent = `${Math.floor(S.mana).toLocaleString()} / ${CFG.maxMana.toLocaleString()}`;
+  $('mhbar').style.width = S.swing * 100 + '%';
+  $('swinglabel').textContent = S.cast ? 'Casting' : 'Swing';
+
+  for (const a of barAbilities()) {
+    const cd = cdOf(a);
+    const cdLeft = (S.ready[a.id] || 0) - S.t;
+    const gcdLeft = a.gcd ? S.gcdUntil - S.t : 0;
+    let frac = 0;
+    if (cdLeft > 0 && cdLeft >= gcdLeft && cd) frac = cdLeft / cd;
+    else if (gcdLeft > 0) frac = gcdLeft / (a.gcdTime || CFG.gcd);
+    a.mask.style.height = Math.min(1, frac) * 100 + '%';
+    a.cdText.textContent = cdLeft > 0 && cd ? fmtTime(cdLeft) : '';
+    a.el.classList.toggle('norage', !S.started || S.mana < a.cost() || !!(a.usable && !a.usable()));
+    a.el.classList.toggle('proc', S.started && abilityLit(a));
+  }
+
+  const buffs = classBuffs();
+  const html = buffs.map(([icon, text]) => `<div class="buff"><img src="${iconUrl(icon)}" alt="">${text}</div>`).join('');
+  if ($('buffs').innerHTML !== html) $('buffs').innerHTML = html;
+
+  $('meter').innerHTML = `DPS <b>${S.t > 0 ? (S.totalDamage / S.t).toFixed(1) : '0.0'}</b> · ` +
+    `Damage <b>${S.totalDamage.toLocaleString()}</b> · Time <b>${fmtTime(S.t)}</b>`;
+}
+
+function frame(now) {
+  // Cap the step so a backgrounded tab pauses rather than fast-forwarding
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  if (S.started && !S.over) tick(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+setSpec(SPEC_ID);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
