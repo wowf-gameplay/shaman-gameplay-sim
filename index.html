@@ -109,7 +109,8 @@
   .stance.active { opacity: 1; color: #ffd100; font-weight: 700; border-color: #ffd100; box-shadow: 0 0 8px rgba(255, 209, 0, .5); }
   .ability.proc { border-color: #ffe100; animation: proc .6s infinite alternate; }
   @keyframes proc { from { box-shadow: 0 0 4px #ffe100; } to { box-shadow: 0 0 14px #ffe100, inset 0 0 10px rgba(255,225,0,.5); } }
-  #buffs { min-height: 30px; margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  #buffs { height: 62px; overflow: hidden; margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; align-content: flex-start; }
+  .buff { height: 28px; }
   .buff {
     font-size: 12px; padding: 4px 8px; border-radius: 4px; background: #2b2318;
     border: 1px solid #6b5a3a; color: #ffd100; font-variant-numeric: tabular-nums;
@@ -265,10 +266,16 @@
   #log .y { color: #ffe100; } #log .w { color: #fff; } #log .r { color: #ff7a6b; }
   footer { margin-top: 10px; font-size: 11px; color: #7d735f; line-height: 1.4; }
 
-  /* Mana bar */
+  /* Mana bar, cast bar */
   #ragebar.mana { background: #0a1630; border-color: #1f3f7a; }
   #ragebar.mana #ragefill { background: linear-gradient(#3b82f6, #1d4ed8); }
   .floater.mana { color: #6fb0ff; font-size: 15px; }
+  .castbar { position: relative; height: 16px; border: 1px solid #3a2f20; }
+  #castbar { background: linear-gradient(#ffd100, #c79100); }
+  #casttext {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-style: normal; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 1px 1px 2px #000;
+  }
   #specbar { display: flex; gap: 6px; margin-top: 10px; }
   #specbar button {
     flex: 1; font: inherit; font-size: 14px; font-weight: 700; padding: 8px; cursor: pointer;
@@ -323,7 +330,8 @@
   </div>
 
   <div id="buffs"></div>
-  <div class="swing"><span id="swinglabel">Swing</span><div class="swingbar"><div id="mhbar"></div></div></div>
+  <div class="swing"><span>Swing</span><div class="swingbar"><div id="mhbar"></div></div></div>
+  <div class="swing"><span>Cast</span><div class="swingbar castbar"><div id="castbar"></div><em id="casttext"></em></div></div>
 
   <div id="ragebar" class="mana"><div id="ragefill"></div><div id="ragetext"></div></div>
   <div id="bar"></div>
@@ -864,7 +872,7 @@ function press(a) {
   for (const b of a.shock ? ABILITIES.filter(x => x.shock) : [a]) S.ready[b.id] = S.t + cdOf(b);
   if (a.gcd) S.gcdUntil = S.t + (a.gcdTime || CFG.gcd);
   if (a.onStart) a.onStart();
-  if (castTime > 0) S.cast = { ability: a, until: S.t + castTime };   // a hard cast holds the swing and restarts it afterwards
+  if (castTime > 0) S.cast = { ability: a, until: S.t + castTime, total: castTime };   // a hard cast holds the swing and restarts it afterwards
   else a.use();
 }
 
@@ -929,7 +937,6 @@ function classBuffs() {
   if (S.t < S.buffs.farseer) buffs.push(['spell_nature_bloodlust', `Rage of the Farseer ${fmtTime(S.buffs.farseer - S.t)}`]);
   if (S.t < S.buffs.bloodFury) buffs.push(['racial_orc_berserkerstrength', `Blood Fury ${fmtTime(S.buffs.bloodFury - S.t)}`]);
   if (S.t < S.buffs.crusader) buffs.push(['spell_holy_blessingofstrength', `Holy Strength ${fmtTime(S.buffs.crusader - S.t)}`]);
-  if (S.cast) buffs.push([S.cast.ability.icon, `Casting ${S.cast.ability.name} ${fmtTime(Math.max(0, S.cast.until - S.t))}`]);
   return buffs;
 }
 function sourceInfo(name) {
@@ -1298,7 +1305,8 @@ function render() {
   $('ragefill').style.width = S.mana / CFG.maxMana * 100 + '%';
   $('ragetext').textContent = `${Math.floor(S.mana).toLocaleString()} / ${CFG.maxMana.toLocaleString()}`;
   $('mhbar').style.width = S.swing * 100 + '%';
-  $('swinglabel').textContent = S.cast ? 'Casting' : 'Swing';
+  $('castbar').style.width = S.cast ? Math.min(1, 1 - (S.cast.until - S.t) / S.cast.total) * 100 + '%' : '0';
+  $('casttext').textContent = S.cast ? `${S.cast.ability.name} ${fmtTime(Math.max(0, S.cast.until - S.t))}` : '';
 
   for (const a of barAbilities()) {
     const cd = cdOf(a);
